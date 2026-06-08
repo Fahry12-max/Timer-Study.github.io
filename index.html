@@ -1,84 +1,176 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Focus Timer Gen Z</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomodoro ⚡</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="style.css" rel="stylesheet">
 </head>
-<body class="bg-gradient-to-b from-indigo-100 to-white min-h-screen flex items-center justify-center font-sans">
-  <div class="bg-white rounded-2xl shadow-xl p-8 max-w-sm text-center">
-    <h1 class="text-2xl font-bold text-indigo-600 mb-4">Study With Pomodoro</h1>
+<body>
 
-    <div id="mode" class="text-sm font-semibold text-gray-500 mb-2">Mode: Focus</div>
-    <div id="timer" class="text-5xl font-mono text-gray-800 mb-4">25:00</div>
+<div class="ambient"></div>
 
-    <div class="flex justify-center gap-4">
-      <button id="start" class="px-4 py-2 bg-green-500 text-white rounded-lg">Start</button>
-      <button id="stop" class="px-4 py-2 bg-red-500 text-white rounded-lg">Stop</button>
-      <button id="reset" class="px-4 py-2 bg-gray-500 text-white rounded-lg">Reset</button>
+<!-- SVG gradient defs -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="progGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9c93e5"/>
+      <stop offset="100%" stop-color="#74b0cc"/>
+    </linearGradient>
+    <linearGradient id="timerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9c93e5"/>
+      <stop offset="50%" stop-color="#74b0cc"/>
+      <stop offset="100%" stop-color="#be74be"/>
+    </linearGradient>
+    <linearGradient id="breakGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#74b0cc"/>
+      <stop offset="100%" stop-color="#4b7fa1"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon"></div>
+      <span class="logo-text">Pomo</span>
     </div>
-
-    <button id="toggleMode" class="mt-6 px-4 py-2 bg-indigo-400 text-white rounded-full">
-      Switch to Break
-    </button>
+    <div class="header-right">
+      <button class="icon-btn" title="Notifications" id="headerNotifBtn">🔔</button>
+      <button class="icon-btn" title="Stats" onclick="scrollToStats()">📊</button>
+    </div>
   </div>
 
-  <script>
-  let running = false;
-  let interval;
-  let timeLeft = 25 * 60;
-  let isFocus = true
- 
-  const timerEl = document.getElementById('timer');
-  const modeEl = document.getElementById('mode');
-  const toggleModeBtn = document.getElementById('toggleMode');
+  <!-- Notif banner -->
+  <div class="notif-banner hidden" id="notifBanner">
+    <span>Enable notifications for timer alerts</span>
+    <button class="btn-enable-notif" id="enableNotifBtn">Enable</button>
+  </div>
 
-  function updateTimerDisplay() {
-    const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0');
-    const seconds = String(timeLeft % 60).padStart(2, '0');
-    timerEl.textContent = `${minutes}:${seconds}`;
-  }
+  <!-- Greeting -->
+  <div class="greeting">
+    <div class="greeting-line">Good session</div>
+    <div class="greeting-name">Morning, you 👋</div>
+  </div>
 
-  function switchMode() {
-    isFocus = !isFocus;
-    timeLeft = isFocus ? 25 * 60 : 5 * 60;
-    modeEl.textContent = `Mode: ${isFocus ? 'Focus' : 'Break'}`;
-    toggleModeBtn.textContent = `Switch to ${isFocus ? 'Break' : 'Focus'}`;
-    updateTimerDisplay();
-    clearInterval(interval);
-    running = false;
-  }
+  <!-- Daily progress -->
+  <div class="progress-card">
+    <div class="progress-ring-wrap">
+      <svg width="72" height="72" viewBox="0 0 72 72">
+        <circle class="prog-bg" cx="36" cy="36" r="30"/>
+        <circle class="prog-fill" id="dailyProgRing" cx="36" cy="36" r="30"/>
+      </svg>
+      <span class="progress-pct" id="dailyPct">0%</span>
+    </div>
+    <div class="progress-info">
+      <div class="progress-title" id="dailyMsg">Ready to focus 🎯</div>
+      <div class="progress-sub">Complete your daily pomodoro goal</div>
+      <div class="progress-tasks-done" id="dailyTasksDone">0 of 8 sessions done</div>
+    </div>
+  </div>
 
-  document.getElementById('start').onclick = () => {
-    if (!running) {
-      running = true;
-      interval = setInterval(() => {
-        if (timeLeft > 0) {
-          timeLeft--;
-          updateTimerDisplay();
-        } else {
-          clearInterval(interval);
-          running = false;
-          alert(`${isFocus ? 'Focus' : 'Break'} time selesai!`);
-        }
-      }, 1000);
-    }
-  };
+  <!-- Mode tabs -->
+  <div class="mode-tabs">
+    <button class="tab active" id="tabFocus" onclick="setMode('focus')">⚡ Focus</button>
+    <button class="tab" id="tabShort" onclick="setMode('short')">☕ Short Break</button>
+    <button class="tab" id="tabLong" onclick="setMode('long')">🌙 Long Break</button>
+  </div>
 
-  document.getElementById('stop').onclick = () => {
-    clearInterval(interval);
-    running = false;
-  };
-  document.getElementById('reset').onclick = () => {
-    clearInterval(interval);
-    running = false;
-    timeLeft = isFocus ? 25 * 60 : 5 * 60;
-    updateTimerDisplay();
-  };
+  <!-- Timer card -->
+  <div class="timer-card">
+    <!-- Session dots -->
+    <div class="session-dots" id="sessionDots"></div>
 
-  toggleModeBtn.onclick = switchMode;
+    <div class="timer-ring-wrap">
+      <svg width="220" height="220" viewBox="0 0 220 220" style="width:220px;height:220px">
+        <circle class="ring-bg" cx="110" cy="110" r="96"/>
+        <circle class="ring-fill" id="timerRing" cx="110" cy="110" r="96"
+          stroke-dasharray="603" stroke-dashoffset="0"/>
+      </svg>
+      <div class="timer-inner">
+        <div class="timer-logo">⚡</div>
+        <div class="timer-display" id="timerDisplay">25:00</div>
+        <div class="timer-sub" id="timerSub">Focus</div>
+      </div>
+    </div>
 
-  updateTimerDisplay();
-  </script>
+    <div class="controls">
+      <button class="ctrl-btn" id="btnReset" title="Reset (R)" onclick="resetTimer()">↺</button>
+      <button class="btn-play" id="btnPlay" onclick="toggleTimer()">▶</button>
+      <button class="ctrl-btn" id="btnSkip" title="Skip" onclick="skipTimer()">⏭</button>
+    </div>
+  </div>
+
+  <!-- Duration settings -->
+  <div class="settings-card">
+    <div class="settings-header">Duration Settings</div>
+    <div class="dur-row">
+      <div class="dur-icon focus-ic">⚡</div>
+      <span class="dur-name">Focus</span>
+      <div class="dur-controls">
+        <button class="dur-btn" onclick="changeDur('focus',-5)">−</button>
+        <span class="dur-val" id="dFocus">25</span>
+        <span style="font-size:11px;color:var(--text-muted)">min</span>
+        <button class="dur-btn" onclick="changeDur('focus',5)">+</button>
+      </div>
+    </div>
+    <div class="dur-row">
+      <div class="dur-icon short-ic">☕</div>
+      <span class="dur-name">Short Break</span>
+      <div class="dur-controls">
+        <button class="dur-btn" onclick="changeDur('short',-1)">−</button>
+        <span class="dur-val" id="dShort">5</span>
+        <span style="font-size:11px;color:var(--text-muted)">min</span>
+        <button class="dur-btn" onclick="changeDur('short',1)">+</button>
+      </div>
+    </div>
+    <div class="dur-row">
+      <div class="dur-icon long-ic">🌙</div>
+      <span class="dur-name">Long Break</span>
+      <div class="dur-controls">
+        <button class="dur-btn" onclick="changeDur('long',-5)">−</button>
+        <span class="dur-val" id="dLong">15</span>
+        <span style="font-size:11px;color:var(--text-muted)">min</span>
+        <button class="dur-btn" onclick="changeDur('long',5)">+</button>
+      </div>
+    </div>
+  </div>
+  <!-- Stats -->
+  <div class="stats-grid" id="statsSection">
+    <div class="stat-card">
+      <div class="stat-val" id="statPomos">0</div>
+      <div class="stat-label">Pomodoros</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statTime">0m</div>
+      <div class="stat-label">Focus Time</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statStreak">0🔥</div>
+      <div class="stat-label">Streak</div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Congrats overlay -->
+<div class="congrats-overlay" id="congratsOverlay">
+  <div class="congrats-box">
+    <span class="congrats-emoji">🏆</span>
+    <div class="congrats-title">Congratulations!</div>
+    <div class="congrats-sub" id="congratsSub">You completed a focus session!</div>
+    <button class="congrats-btn" onclick="closeCongratas()">Continue →</button>
+  </div>
+</div>
+
+<script src="script.js"></script>
+
 </body>
 </html>
