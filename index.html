@@ -1,176 +1,231 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pomodoro ⚡</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link href="style.css" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pomo — Focus Timer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="style.css" rel="stylesheet">
 </head>
 <body>
 
-<div class="ambient"></div>
+<!-- NOTIFICATION BAR -->
+<div class="notif-bar" id="notifBar">
+  <span>🔔 Enable notifications for session alerts</span>
+  <button class="nb-btn" id="enableNotif">Enable</button>
+</div>
 
-<!-- SVG gradient defs -->
-<svg width="0" height="0" style="position:absolute">
-  <defs>
-    <linearGradient id="progGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#9c93e5"/>
-      <stop offset="100%" stop-color="#74b0cc"/>
-    </linearGradient>
-    <linearGradient id="timerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#9c93e5"/>
-      <stop offset="50%" stop-color="#74b0cc"/>
-      <stop offset="100%" stop-color="#be74be"/>
-    </linearGradient>
-    <linearGradient id="breakGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#74b0cc"/>
-      <stop offset="100%" stop-color="#4b7fa1"/>
-    </linearGradient>
-  </defs>
-</svg>
+<div class="app scroll-area">
 
-<div class="app">
-
-  <!-- Header -->
-  <div class="header">
-    <div class="logo">
-      <div class="logo-icon"></div>
-      <span class="logo-text">Pomodoro</span>
+  <!-- TOP NAV -->
+  <div class="topnav">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="logo-mark">
+        <!-- Lightning bolt in circular timer - "Rekomendasi Favorit" from image 3 -->
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" stroke-width="2" stroke-dasharray="4 2"/>
+          <path d="M13.5 4L8 13h5.5L10.5 20L16 11h-5l2.5-7z" fill="white"/>
+        </svg>
+      </div>
+      <span class="app-name">Pomodoro</span>
     </div>
-    <div class="header-right">
-      <button class="icon-btn" title="Notifications" id="headerNotifBtn">🔔</button>
-      <button class="icon-btn" title="Stats" onclick="scrollToStats()">📊</button>
+    <div class="nav-right">
+      <div class="nav-btn" title="Settings" onclick="toggleSettings()">⚙</div>
+      <div class="nav-btn" title="Notifications">🔔</div>
     </div>
   </div>
 
-  <!-- Notif banner -->
-  <div class="notif-banner hidden" id="notifBanner">
-    <span>Enable notifications for timer alerts</span>
-    <button class="btn-enable-notif" id="enableNotifBtn">Enable</button>
-  </div>
-
-  <!-- Greeting -->
+  <!-- GREETING -->
   <div class="greeting">
-    <div class="greeting-line">Good session</div>
-    <div class="greeting-name">Hello Student 👋</div>
+    <div class="greeting-sub">Good morning 👋</div>
+    <div class="greeting-name">Let's focus today <span class="greeting-emoji">⚡</span></div>
   </div>
 
-  <!-- Daily progress -->
-  <div class="progress-card">
-    <div class="progress-ring-wrap">
-      <svg width="72" height="72" viewBox="0 0 72 72">
-        <circle class="prog-bg" cx="36" cy="36" r="30"/>
-        <circle class="prog-fill" id="dailyProgRing" cx="36" cy="36" r="30"/>
+  <!-- PROGRESS PILL -->
+  <div class="progress-pill">
+    <div class="progress-circle-wrap">
+      <svg viewBox="0 0 54 54">
+        <circle class="pc-bg" cx="27" cy="27" r="22"/>
+        <circle class="pc-fg" id="dailyRing" cx="27" cy="27" r="22"
+          stroke="url(#dailyGrad)"
+          stroke-dasharray="138"
+          stroke-dashoffset="138"/>
+        <defs>
+          <linearGradient id="dailyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#9c93e5"/>
+            <stop offset="100%" stop-color="#74b0cc"/>
+          </linearGradient>
+        </defs>
       </svg>
-      <span class="progress-pct" id="dailyPct">0%</span>
+      <div class="pct-text" id="dailyPct">0%</div>
     </div>
     <div class="progress-info">
-      <div class="progress-title" id="dailyMsg">Ready to focus 🎯</div>
-      <div class="progress-sub">Complete your daily pomodoro goal</div>
-      <div class="progress-tasks-done" id="dailyTasksDone">0 of 8 sessions done</div>
+      <div class="progress-title" id="dailyStatus">Daily goal: 0 / 8 sessions</div>
+      <div class="progress-sub" id="dailySubtext">Start your first session!</div>
     </div>
+    <div class="progress-tag" id="streakTag">🔥 0 streak</div>
   </div>
 
-  <!-- Mode tabs -->
+  <!-- MODE TABS -->
   <div class="mode-tabs">
-    <button class="tab active" id="tabFocus" onclick="setMode('focus')">⚡ Focus</button>
-    <button class="tab" id="tabShort" onclick="setMode('short')">☕ Short Break</button>
-    <button class="tab" id="tabLong" onclick="setMode('long')">🌙 Long Break</button>
+    <button class="tab active-focus" id="tabFocus" onclick="setMode('focus')">Focus</button>
+    <button class="tab" id="tabShort" onclick="setMode('short')">Short Break</button>
+    <button class="tab" id="tabLong" onclick="setMode('long')">Long Break</button>
   </div>
 
-  <!-- Timer card -->
-  <div class="timer-card">
-    <!-- Session dots -->
-    <div class="session-dots" id="sessionDots"></div>
-
-    <div class="timer-ring-wrap">
-      <svg width="220" height="220" viewBox="0 0 220 220" style="width:220px;height:220px">
-        <circle class="ring-bg" cx="110" cy="110" r="96"/>
-        <circle class="ring-fill" id="timerRing" cx="110" cy="110" r="96"
-          stroke-dasharray="603" stroke-dashoffset="0"/>
-      </svg>
-      <div class="timer-inner">
-        <div class="timer-logo">⚡</div>
-        <div class="timer-display" id="timerDisplay">25:00</div>
-        <div class="timer-sub" id="timerSub">Focus</div>
+  <!-- TIMER CARD -->
+  <div class="timer-card" id="timerCard">
+    <div class="timer-card-inner">
+      <div class="task-chip" id="activeTaskChip">
+        <div class="task-chip-dot"></div>
+        <span class="task-chip-text" id="activeTaskName">No task selected</span>
       </div>
-    </div>
 
-    <div class="controls">
-      <button class="ctrl-btn" id="btnReset" title="Reset (R)" onclick="resetTimer()">↺</button>
-      <button class="btn-play" id="btnPlay" onclick="toggleTimer()">▶</button>
-      <button class="ctrl-btn" id="btnSkip" title="Skip" onclick="skipTimer()">⏭</button>
-    </div>
-  </div>
+      <div class="ring-wrap" id="ringWrap">
+        <svg viewBox="0 0 200 200">
+          <defs>
+            <linearGradient id="ringGradFocus" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="rgba(255,255,255,0.9)"/>
+              <stop offset="100%" stop-color="rgba(255,255,255,0.4)"/>
+            </linearGradient>
+          </defs>
+          <circle class="r-bg" cx="100" cy="100" r="88"/>
+          <circle class="r-fg" id="timerRing" cx="100" cy="100" r="88"
+            stroke="url(#ringGradFocus)"
+            stroke-dasharray="553"
+            stroke-dashoffset="0"/>
+        </svg>
+        <div class="ring-inner">
+          <div class="timer-digits" id="timerDisplay">25:00</div>
+          <div class="timer-mode-label" id="timerModeLabel">Focus</div>
+        </div>
+      </div>
 
-  <!-- Duration settings -->
-  <div class="settings-card">
-    <div class="settings-header">Duration Settings</div>
-    <div class="dur-row">
-      <div class="dur-icon focus-ic">⚡</div>
-      <span class="dur-name">Focus</span>
-      <div class="dur-controls">
-        <button class="dur-btn" onclick="changeDur('focus',-5)">−</button>
-        <span class="dur-val" id="dFocus">25</span>
-        <span style="font-size:11px;color:var(--text-muted)">min</span>
-        <button class="dur-btn" onclick="changeDur('focus',5)">+</button>
-      </div>
-    </div>
-    <div class="dur-row">
-      <div class="dur-icon short-ic">☕</div>
-      <span class="dur-name">Short Break</span>
-      <div class="dur-controls">
-        <button class="dur-btn" onclick="changeDur('short',-1)">−</button>
-        <span class="dur-val" id="dShort">5</span>
-        <span style="font-size:11px;color:var(--text-muted)">min</span>
-        <button class="dur-btn" onclick="changeDur('short',1)">+</button>
-      </div>
-    </div>
-    <div class="dur-row">
-      <div class="dur-icon long-ic">🌙</div>
-      <span class="dur-name">Long Break</span>
-      <div class="dur-controls">
-        <button class="dur-btn" onclick="changeDur('long',-5)">−</button>
-        <span class="dur-val" id="dLong">15</span>
-        <span style="font-size:11px;color:var(--text-muted)">min</span>
-        <button class="dur-btn" onclick="changeDur('long',5)">+</button>
+      <div class="session-indicator" id="sessionDots"></div>
+
+      <div class="timer-controls">
+        <button class="ctrl-btn" id="btnReset" onclick="resetTimer()" title="Reset (R)">↺</button>
+        <button class="ctrl-btn ctrl-play" id="btnPlay" onclick="toggleTimer()">▶</button>
+        <button class="ctrl-btn" id="btnSkip" onclick="skipTimer()" title="Skip">⏭</button>
       </div>
     </div>
   </div>
-  <!-- Stats -->
-  <div class="stats-grid" id="statsSection">
+
+  <!-- DURATION SETTINGS (collapsible) -->
+  <div class="dur-section" id="durationSection" style="display:none">
+    <div class="section-label">Session Duration</div>
+    <div class="dur-row">
+      <div class="dur-row-label"><div class="dot" style="background:#9c93e5"></div>Focus</div>
+      <div class="dur-controls">
+        <div class="db" onclick="changeDur('focus',-5)">−</div>
+        <div class="dv" id="dvFocus">25</div>
+        <div class="db" onclick="changeDur('focus',5)">+</div>
+        <span style="font-size:11px;color:var(--text-dim)">min</span>
+      </div>
+    </div>
+    <div class="dur-row">
+      <div class="dur-row-label"><div class="dot" style="background:#74b0cc"></div>Short Break</div>
+      <div class="dur-controls">
+        <div class="db" onclick="changeDur('short',-1)">−</div>
+        <div class="dv" id="dvShort">5</div>
+        <div class="db" onclick="changeDur('short',1)">+</div>
+        <span style="font-size:11px;color:var(--text-dim)">min</span>
+      </div>
+    </div>
+    <div class="dur-row">
+      <div class="dur-row-label"><div class="dot" style="background:#be74be"></div>Long Break</div>
+      <div class="dur-controls">
+        <div class="db" onclick="changeDur('long',-5)">−</div>
+        <div class="dv" id="dvLong">15</div>
+        <div class="db" onclick="changeDur('long',5)">+</div>
+        <span style="font-size:11px;color:var(--text-dim)">min</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TASKS -->
+  <div class="tasks-section">
+    <div class="tasks-header">
+      <div class="tasks-title-row">
+        <div class="section-label" style="margin:0">Today's Tasks</div>
+        <div class="tasks-count-badge" id="tasksBadge">0</div>
+      </div>
+      <div class="add-task-btn" onclick="toggleAddTask()">+</div>
+    </div>
+
+    <div class="add-task-form" id="addTaskForm">
+      <input type="text" class="task-input" id="taskNameInput" placeholder="What are you working on?" maxlength="60"/>
+      <div class="task-form-row">
+        <select class="cat-select" id="taskCatSelect">
+          <option value="Design">🎨 Design</option>
+          <option value="Code">💻 Code</option>
+          <option value="Study">📚 Study</option>
+          <option value="Writing">✍️ Writing</option>
+          <option value="Writing">📖 Reading</option>
+          <option value="Other">📌 Other</option>
+        </select>
+        <button class="add-submit" onclick="addTask()">Add Task</button>
+      </div>
+    </div>
+
+    <div id="taskList"></div>
+    <div id="taskEmpty" style="text-align:center;color:var(--text-dim);font-size:13px;padding:20px 0;display:none">
+      No tasks yet — add one above 👆
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="section-label">Today's Stats</div>
+  <div class="stats-grid">
     <div class="stat-card">
+      <div class="stat-icon">🍅</div>
       <div class="stat-val" id="statPomos">0</div>
-      <div class="stat-label">Pomodoros</div>
+      <div class="stat-lbl">Pomodoros</div>
     </div>
     <div class="stat-card">
-      <div class="stat-val" id="statTime">0m</div>
-      <div class="stat-label">Focus Time</div>
+      <div class="stat-icon">⏱</div>
+      <div class="stat-val" id="statMins">0m</div>
+      <div class="stat-lbl">Focus Time</div>
     </div>
     <div class="stat-card">
-      <div class="stat-val" id="statStreak">0🔥</div>
-      <div class="stat-label">Streak</div>
+      <div class="stat-icon">🔥</div>
+      <div class="stat-val" id="statStreak">0</div>
+      <div class="stat-lbl">Streak</div>
     </div>
   </div>
 
-</div><!-- /app -->
+</div><!-- .app -->
 
-<!-- Toast -->
-<div class="toast" id="toast"></div>
-
-<!-- Congrats overlay -->
-<div class="congrats-overlay" id="congratsOverlay">
-  <div class="congrats-box">
-    <span class="congrats-emoji">🏆</span>
-    <div class="congrats-title">Congratulations!</div>
-    <div class="congrats-sub" id="congratsSub">You completed a focus session!</div>
-    <button class="congrats-btn" onclick="closeCongratas()">Continue →</button>
+<!-- BOTTOM BAR -->
+<div class="bottom-bar">
+  <div class="bb-tab bb-active">
+    <div class="bb-icon">⏱</div>
+    <div class="bb-label">Timer</div>
+    <div class="bb-dot"></div>
+  </div>
+  <div class="bb-tab">
+    <div class="bb-icon">✅</div>
+    <div class="bb-label">Tasks</div>
+    <div class="bb-dot"></div>
+  </div>
+  <div class="bb-tab">
+    <div class="bb-icon">📊</div>
+    <div class="bb-label">Stats</div>
+    <div class="bb-dot"></div>
+  </div>
+  <div class="bb-tab">
+    <div class="bb-icon">👤</div>
+    <div class="bb-label">Profile</div>
+    <div class="bb-dot"></div>
   </div>
 </div>
 
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span id="toastEmoji">🎉</span>
+  <span id="toastMsg">Session complete!</span>
+</div>
 <script src="script.js"></script>
-
 </body>
 </html>
