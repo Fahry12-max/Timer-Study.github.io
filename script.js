@@ -1,328 +1,302 @@
-// ── State ──────────────────────────────────────────────────────────────
-const CIRC = 2 * Math.PI * 96; // ~603
+// ── STATE ──────────────────────────────────────────────────
+const CIRC = 2 * Math.PI * 88; // 553
 
 let dur = loadDur();
-let mode = 'focus';
-let timeLeft, totalTime;
-let running = false, interval = null;
 let stats = loadStats();
 let tasks = loadTasks();
-let dailyGoal = 8;
 
-// ── Persistence ────────────────────────────────────────────────────────
+let mode = 'focus';
+let timeLeft = dur.focus * 60;
+let totalTime = dur.focus * 60;
+let running = false;
+let iv = null;
+let activeTaskId = null;
+
+const GRADIENTS = {
+  focus: 'linear-gradient(160deg, #3d2f80 0%, #1a1640 50%, #0a0a18 100%)',
+  short: 'linear-gradient(160deg, #1e4f71 0%, #0d2a40 50%, #070d14 100%)',
+  long:  'linear-gradient(160deg, #5a2870 0%, #2c1040 50%, #0a0614 100%)',
+};
+const LABELS = { focus:'Focus', short:'Short Break', long:'Long Break' };
+
+// ── STORAGE ────────────────────────────────────────────────
 function loadDur() {
-  try { return JSON.parse(localStorage.getItem('pomo_dur')) || {focus:25,short:5,long:15}; }
+  try { return JSON.parse(localStorage.getItem('pm_dur')) || {focus:25,short:5,long:15}; }
   catch { return {focus:25,short:5,long:15}; }
 }
-function saveDur() { localStorage.setItem('pomo_dur', JSON.stringify(dur)); }
+function saveDur() { localStorage.setItem('pm_dur', JSON.stringify(dur)); }
 
 function loadStats() {
   try {
-    const s = JSON.parse(localStorage.getItem('pomo_stats'));
     const today = new Date().toDateString();
+    const s = JSON.parse(localStorage.getItem('pm_stats'));
     if (s && s.date === today) return s;
   } catch {}
-  return { date: new Date().toDateString(), sessions: 0, focusMin: 0, streak: 0 };
+  return { date: new Date().toDateString(), sessions:0, minutes:0, streak:0 };
 }
-function saveStats() { localStorage.setItem('pomo_stats', JSON.stringify(stats)); }
+function saveStats() { localStorage.setItem('pm_stats', JSON.stringify(stats)); }
 
 function loadTasks() {
-  try {
-    const t = JSON.parse(localStorage.getItem('pomo_tasks'));
-    const today = new Date().toDateString();
-    if (t && t.date === today) return t.items || [];
-  } catch {}
-  return [
-    { id: 1, name: 'Read Documentation', cat: 'study',  pomos: 2, done: false },
-    { id: 2, name: 'Work on Project',     cat: 'work',   pomos: 3, done: false },
-    { id: 3, name: 'Exercise',            cat: 'health', pomos: 1, done: false },
-  ];
+  try { return JSON.parse(localStorage.getItem('pm_tasks')) || []; }
+  catch { return []; }
 }
-function saveTasks() {
-  localStorage.setItem('pomo_tasks', JSON.stringify({ date: new Date().toDateString(), items: tasks }));
+function saveTasks() { localStorage.setItem('pm_tasks', JSON.stringify(tasks)); }
+
+// ── TIMER ──────────────────────────────────────────────────
+function toggleTimer() {
+  running ? pause() : start();
+}
+function start() {
+  running = true;
+  document.getElementById('btnPlay').textContent = '⏸';
+  document.getElementById('ringWrap').classList.add('running');
+  iv = setInterval(() => {
+    if (timeLeft > 0) { timeLeft--; renderTimer(); }
+    else { clearInterval(iv); running = false; onEnd(); }
+  }, 1000);
+}
+function pause() {
+  clearInterval(iv); running = false;
+  document.getElementById('btnPlay').textContent = '▶';
+  document.getElementById('ringWrap').classList.remove('running');
+}
+function resetTimer() {
+  pause();
+  timeLeft = totalTime;
+  document.getElementById('btnPlay').textContent = '▶';
+  renderTimer();
+}
+function skipTimer() { clearInterval(iv); running = false; onEnd(); }
+
+function onEnd() {
+  document.getElementById('btnPlay').textContent = '▶';
+  document.getElementById('ringWrap').classList.remove('running');
+  playBeep();
+  if (mode === 'focus') {
+    stats.sessions++; stats.minutes += dur.focus; stats.streak++;
+    saveStats(); renderStats(); renderDailyProgress();
+    notify('Focus done! 🎉 Take a break.');
+    showToast('🔥', 'Focus session complete!');
+    // increment task pomodoro
+    if (activeTaskId !== null) {
+      const t = tasks.find(t => t.id === activeTaskId);
+      if (t) { t.pomos = (t.pomos||0)+1; saveTasks(); renderTasks(); }
+    }
+    const isLong = stats.sessions % 4 === 0;
+    setTimeout(() => setMode(isLong ? 'long' : 'short'), 400);
+  } else {
+    notify('Break over! 💪 Back to focus.');
+    showToast('💪', 'Break over — let\'s go!');
+    setTimeout(() => setMode('focus'), 400);
+  }
 }
 
-// ── Init ───────────────────────────────────────────────────────────────
-function init() {
-  setMode('focus', true);
-  renderDurUI();
-  renderTasks();
-  renderStats();
-  renderProgress();
-  renderSessionDots();
-  checkNotif();
-
-  // Init ring dasharray
-  document.getElementById('timerRing').style.strokeDasharray = CIRC;
-  document.getElementById('timerRing').style.strokeDashoffset = 0;
-}
-
-// ── Mode ───────────────────────────────────────────────────────────────
-function setMode(m, init = false) {
+// ── MODE ───────────────────────────────────────────────────
+function setMode(m) {
   mode = m;
-  if (!init) { clearInterval(interval); running = false; }
+  clearInterval(iv); running = false;
+  document.getElementById('btnPlay').textContent = '▶';
+  document.getElementById('ringWrap').classList.remove('running');
 
   totalTime = (m === 'focus' ? dur.focus : m === 'short' ? dur.short : dur.long) * 60;
   timeLeft = totalTime;
 
+  // Card gradient
+  document.getElementById('timerCard').style.background = GRADIENTS[m];
+  document.getElementById('timerModeLabel').textContent = LABELS[m];
+
   // Tabs
-  ['tabFocus','tabShort','tabLong'].forEach((id,i) => {
-    const modes = ['focus','short','long'];
-    const el = document.getElementById(id);
-    el.className = 'tab' + (modes[i] === m ? (m === 'focus' ? ' active' : ' active-break') : '');
-  });
+  document.getElementById('tabFocus').className = 'tab' + (m==='focus'?' active-focus':'');
+  document.getElementById('tabShort').className = 'tab' + (m==='short'?' active-short':'');
+  document.getElementById('tabLong').className = 'tab' + (m==='long'?' active-long':'');
 
-  // Timer appearance
-  const disp = document.getElementById('timerDisplay');
-  const ring = document.getElementById('timerRing');
-  const sub  = document.getElementById('timerSub');
-  const play = document.getElementById('btnPlay');
-
-  if (m === 'focus') {
-    disp.className = 'timer-display';
-    ring.className = 'ring-fill';
-    sub.textContent = 'Focus';
-    play.className = 'btn-play';
-  } else {
-    disp.className = 'timer-display break-grad';
-    ring.className = 'ring-fill break-stroke';
-    sub.textContent = m === 'short' ? 'Short Break' : 'Long Break';
-    play.className = 'btn-play break-play';
-  }
-
-  document.getElementById('btnPlay').innerHTML = '▶';
-  updateTimerDisplay();
+  renderTimer();
+  renderSessionDots();
 }
 
-// ── Timer ──────────────────────────────────────────────────────────────
-function toggleTimer() {
-  if (running) pauseTimer(); else startTimer();
-}
-
-function startTimer() {
-  running = true;
-  document.getElementById('btnPlay').innerHTML = '⏸';
-  interval = setInterval(() => {
-    if (timeLeft > 0) { timeLeft--; updateTimerDisplay(); }
-    else { clearInterval(interval); running = false; onEnd(); }
-  }, 1000);
-}
-
-function pauseTimer() {
-  clearInterval(interval); running = false;
-  document.getElementById('btnPlay').innerHTML = '▶';
-}
-
-function resetTimer() {
-  clearInterval(interval); running = false;
-  timeLeft = totalTime;
-  document.getElementById('btnPlay').innerHTML = '▶';
-  updateTimerDisplay();
-}
-
-function skipTimer() {
-  clearInterval(interval); running = false;
-  onEnd();
-}
-
-function onEnd() {
-  document.getElementById('btnPlay').innerHTML = '▶';
-  playBeep();
-  if (mode === 'focus') {
-    stats.sessions++;
-    stats.focusMin += dur.focus;
-    stats.streak++;
-    saveStats();
-    renderStats();
-    renderProgress();
-    renderSessionDots();
-    notify('Focus done! 🎉 Time to rest.');
-    const isLong = stats.sessions % 4 === 0;
-    showCongrats(isLong
-      ? `Session ${stats.sessions} done! Long break earned 🏆`
-      : `Focus session complete! Take a short break ☕`);
-    setMode(isLong ? 'long' : 'short');
-  } else {
-    notify('Break over. Back to focus! ⚡');
-    showToast('Break done — stay sharp ⚡');
-    setMode('focus');
-  }
-}
-
-function updateTimerDisplay() {
+// ── RENDER ─────────────────────────────────────────────────
+function renderTimer() {
   const m = String(Math.floor(timeLeft/60)).padStart(2,'0');
   const s = String(timeLeft%60).padStart(2,'0');
   document.getElementById('timerDisplay').textContent = `${m}:${s}`;
-  document.title = `${m}:${s} — Pomo ⚡`;
-// Ring progress
+  document.title = `${m}:${s} — ${LABELS[mode]}`;
+
   const ratio = totalTime > 0 ? timeLeft / totalTime : 1;
   document.getElementById('timerRing').style.strokeDashoffset = CIRC * (1 - ratio);
 }
 
-// ── Session dots ────────────────────────────────────────────────────────
 function renderSessionDots() {
-  const el = document.getElementById('sessionDots');
-  const total = 4;
-  const done = stats.sessions % 4;
-  el.innerHTML = '';
-  for (let i = 0; i < total; i++) {
+  const wrap = document.getElementById('sessionDots');
+  wrap.innerHTML = '';
+  const inCycle = stats.sessions % 4;
+  for (let i = 0; i < 4; i++) {
     const d = document.createElement('div');
-    if (i < done) d.className = 'sdot done';
-    else if (i === done && mode === 'focus') d.className = 'sdot current';
-    else d.className = 'sdot';
-    el.appendChild(d);
+    d.className = 'si-dot' + (i < inCycle ? ' done' : i === inCycle && mode === 'focus' ? ' current' : '');
+    wrap.appendChild(d);
   }
 }
 
-// ── Duration ───────────────────────────────────────────────────────────
-function changeDur(key, delta) {
-  const limits = { focus:[5,90], short:[1,30], long:[5,60] };
-  const [mn,mx] = limits[key];
-  dur[key] = Math.min(mx, Math.max(mn, dur[key] + delta));
-  saveDur();
-  renderDurUI();
-  if (!running) setMode(mode, true);
-}
-function renderDurUI() {
-  document.getElementById('dFocus').textContent = dur.focus;
-  document.getElementById('dShort').textContent = dur.short;
-  document.getElementById('dLong').textContent  = dur.long;
-}
-
-// ── Tasks ──────────────────────────────────────────────────────────────
-function renderTasks() {
-  const list = document.getElementById('taskList');
-  const count = document.getElementById('tasksCount');
-  const done = tasks.filter(t=>t.done).length;
-  count.textContent = `${done}/${tasks.length}`;
-  list.innerHTML = '';
-  tasks.forEach((t, idx) => {
-    const row = document.createElement('div');
-    row.className = 'task-item' + (idx === 0 && !t.done ? ' active-task' : '');
-    row.innerHTML = `
-      <div class="task-check ${t.done?'done':''}" onclick="toggleTask(${t.id})"></div>
-      <div class="task-info">
-        <div class="task-name ${t.done?'done-text':''}">${escHtml(t.name)}</div>
-        <div class="task-meta">
-          <span class="task-cat cat-${t.cat}">${t.cat}</span>
-        </div>
-      </div>
-      <div class="task-pomo"><span class="task-pomo-icon">🍅</span>${t.pomos}</div>
-    `;
-    list.appendChild(row);
-  });
-}
-function toggleTask(id) {
-  const t = tasks.find(t=>t.id===id);
-  if (t) { t.done = !t.done; saveTasks(); renderTasks(); renderProgress(); }
-}
-function addTask() {
-  const inp = document.getElementById('newTaskInput');
-  const name = inp.value.trim();
-  if (!name) return;
-  const cats = ['study','work','health','learn'];
-  tasks.push({ id: Date.now(), name, cat: cats[Math.floor(Math.random()*cats.length)], pomos: Math.ceil(Math.random()*3)+1, done: false });
-  saveTasks(); renderTasks();
-  inp.value = '';
-}
-function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// ── Progress ────────────────────────────────────────────────────────────
-function renderProgress() {
-  const pct = Math.min(100, Math.round((stats.sessions / dailyGoal) * 100));
-  document.getElementById('dailyPct').textContent = pct + '%';
-  document.getElementById('dailyTasksDone').textContent = `${stats.sessions} of ${dailyGoal} sessions done`;
-  const msgs = ['Ready to focus 🎯','Keep it up! 💪','Halfway there 🌟','Almost done 🔥','Daily goal hit! 🏆'];
-  const msgIdx = Math.min(4, Math.floor(pct/25));
-  document.getElementById('dailyMsg').textContent = msgs[msgIdx];
-
-  const PROG_CIRC = 2 * Math.PI * 30; // ~188
-  const offset = PROG_CIRC * (1 - pct/100);
-  document.getElementById('dailyProgRing').style.strokeDasharray = PROG_CIRC;
-  document.getElementById('dailyProgRing').style.strokeDashoffset = offset;
-}
-// ── Stats ───────────────────────────────────────────────────────────────
 function renderStats() {
   document.getElementById('statPomos').textContent = stats.sessions;
-  const h = Math.floor(stats.focusMin/60), m = stats.focusMin%60;
-  document.getElementById('statTime').textContent = h > 0 ? `${h}h${m}m` : `${m}m`;
-  document.getElementById('statStreak').textContent = stats.streak + '🔥';
+  const h = Math.floor(stats.minutes/60), m = stats.minutes%60;
+  document.getElementById('statMins').textContent = h > 0 ? `${h}h${m}m` : `${m}m`;
+  document.getElementById('statStreak').textContent = stats.streak;
 }
 
-// ── Notifications ────────────────────────────────────────────────────────
-function checkNotif() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    document.getElementById('notifBanner').classList.remove('hidden');
+function renderDailyProgress() {
+  const GOAL = 8;
+  const pct = Math.min(100, Math.round(stats.sessions / GOAL * 100));
+  const CIRC2 = 2 * Math.PI * 22; // 138
+  document.getElementById('dailyRing').style.strokeDashoffset = CIRC2 * (1 - pct/100);
+  document.getElementById('dailyPct').textContent = `${pct}%`;
+  document.getElementById('dailyStatus').textContent = `Daily goal: ${stats.sessions} / ${GOAL} sessions`;
+  document.getElementById('dailySubtext').textContent =
+    pct === 100 ? '🎉 Goal reached! Amazing!' :
+    stats.sessions === 0 ? 'Start your first session!' :
+    `${GOAL - stats.sessions} more to reach your goal`;
+  document.getElementById('streakTag').textContent = `🔥 ${stats.streak} streak`;
+}
+
+// ── TASKS ──────────────────────────────────────────────────
+function renderTasks() {
+  const list = document.getElementById('taskList');
+  const empty = document.getElementById('taskEmpty');
+  const badge = document.getElementById('tasksBadge');
+
+  const active = tasks.filter(t => !t.done);
+  badge.textContent = active.length;
+
+  if (tasks.length === 0) { list.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  list.innerHTML = tasks.map(t => {
+    const catColors = {Design:'#9c93e5',Code:'#74b0cc',Study:'#be74be',Writing:'#ffb347',Other:'#3bbf8a'};
+    const cc = catColors[t.category] || '#9c93e5';
+    return `<div class="task-item ${t.done?'done-task':''} ${t.id===activeTaskId&&!t.done?'active-task':''}"
+      onclick="selectTask(${t.id})">
+      <div class="task-active-bar"></div>
+      <div class="task-check" onclick="event.stopPropagation();toggleTask(${t.id})">
+        ${t.done ? '✓' : ''}
+      </div>
+      <div class="task-info">
+        <div class="task-name">${t.name}</div>
+        <div class="task-meta">
+          <span class="task-pomo">🍅 ${t.pomos||0}</span>
+          <span class="task-cat" style="background:${cc}22;color:${cc}">${t.category}</span>
+        </div>
+      </div>
+      <div class="task-duration">${t.pomos||0}x</div>
+    </div>`;
+  }).join('');
+
+  // Update active task chip
+  const activeTask = tasks.find(t => t.id === activeTaskId && !t.done);
+  document.getElementById('activeTaskName').textContent = activeTask ? activeTask.name : 'No task selected';
+}
+
+function selectTask(id) {
+  if (tasks.find(t => t.id === id)?.done) return;
+  activeTaskId = id === activeTaskId ? null : id;
+  renderTasks();
+}
+
+function toggleTask(id) {
+  const t = tasks.find(t => t.id === id);
+  if (t) { t.done = !t.done; if (t.done && activeTaskId === id) activeTaskId = null; }
+  saveTasks(); renderTasks();
+}
+
+function toggleAddTask() {
+  const f = document.getElementById('addTaskForm');
+  f.classList.toggle('visible');
+  if (f.classList.contains('visible')) document.getElementById('taskNameInput').focus();
+}
+
+function addTask() {
+  const name = document.getElementById('taskNameInput').value.trim();
+  if (!name) return;
+  const cat = document.getElementById('taskCatSelect').value;
+  tasks.unshift({ id: Date.now(), name, category: cat, done: false, pomos: 0 });
+  saveTasks();
+  document.getElementById('taskNameInput').value = '';
+  document.getElementById('addTaskForm').classList.remove('visible');
+  renderTasks();
+}
+document.getElementById('taskNameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addTask();
+});
+
+// ── DURATION ───────────────────────────────────────────────
+function changeDur(key, delta) {
+  const min = key==='focus'?5:1, max = key==='focus'?90:60;
+  dur[key] = Math.min(max, Math.max(min, dur[key]+delta));
+  document.getElementById('dv'+key.charAt(0).toUpperCase()+key.slice(1)).textContent = dur[key];
+  saveDur();
+  if (!running) {
+    if (mode===key || (mode==='focus'&&key==='focus') || (mode==='short'&&key==='short') || (mode==='long'&&key==='long')) {
+      totalTime = dur[key]*60; timeLeft = totalTime; renderTimer();
+    }
   }
 }
-document.getElementById('enableNotifBtn').onclick = () => {
-  Notification.requestPermission().then(() => {
-    document.getElementById('notifBanner').classList.add('hidden');
-  });
-};
-document.getElementById('headerNotifBtn').onclick = () => {
-  if ('Notification' in window && Notification.permission !== 'granted') {
-    Notification.requestPermission();
-  } else {
-    showToast('Notifications already enabled ✓');
-  }
+
+function toggleSettings() {
+  const s = document.getElementById('durationSection');
+  s.style.display = s.style.display === 'none' ? 'block' : 'none';
+}
+
+// ── NOTIFICATIONS ──────────────────────────────────────────
+function checkNotif() {
+  if (!('Notification' in window)) { document.getElementById('notifBar').classList.add('hidden'); return; }
+  if (Notification.permission !== 'default') { document.getElementById('notifBar').classList.add('hidden'); }
+}
+document.getElementById('enableNotif').onclick = () => {
+  Notification.requestPermission().then(() => document.getElementById('notifBar').classList.add('hidden'));
 };
 function notify(msg) {
-  if (Notification.permission === 'granted') {
-    new Notification('Pomo ⚡', { body: msg });
-  }
+  if (Notification.permission === 'granted') new Notification('Pomo', { body: msg });
 }
 
-// ── Sound ───────────────────────────────────────────────────────────────
+// ── SOUND ──────────────────────────────────────────────────
 function playBeep() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [[440,0],[554,0.18],[659,0.36],[880,0.54]].forEach(([f,t]) => {
+    [[440,0],[554,0.2],[659,0.4]].forEach(([freq,delay]) => {
       const o = ctx.createOscillator(), g = ctx.createGain();
       o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = f; o.type = 'sine';
-      const s = ctx.currentTime + t;
-      g.gain.setValueAtTime(0,s);
-      g.gain.linearRampToValueAtTime(0.2, s+0.04);
-      g.gain.exponentialRampToValueAtTime(0.001, s+0.3);
-      o.start(s); o.stop(s+0.3);
+      o.frequency.value = freq; o.type = 'sine';
+      const t = ctx.currentTime + delay;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.2, t+0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, t+0.4);
+      o.start(t); o.stop(t+0.4);
     });
   } catch(e) {}
 }
 
-// ── Toast ────────────────────────────────────────────────────────────────
+// ── TOAST ──────────────────────────────────────────────────
 let toastTimeout;
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
+function showToast(emoji, msg) {
   clearTimeout(toastTimeout);
+  document.getElementById('toastEmoji').textContent = emoji;
+  document.getElementById('toastMsg').textContent = msg;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
   toastTimeout = setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-// ── Congrats ─────────────────────────────────────────────────────────────
-function showCongrats(msg) {
-  document.getElementById('congratsSub').textContent = msg;
-  document.getElementById('congratsOverlay').classList.add('show');
-}
-function closeCongratas() {
-  document.getElementById('congratsOverlay').classList.remove('show');
-}
-
-// ── Keyboard ─────────────────────────────────────────────────────────────
+// ── KEYBOARD ───────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT') return;
+  if (e.target !== document.body) return;
   if (e.code === 'Space') { e.preventDefault(); toggleTimer(); }
   if (e.code === 'KeyR') resetTimer();
-  if (e.code === 'Digit1') setMode('focus');
-  if (e.code === 'Digit2') setMode('short');
-  if (e.code === 'Digit3') setMode('long');
 });
 
-function scrollToStats() {
-  document.getElementById('statsSection').scrollIntoView({ behavior: 'smooth' });
-}
-
-init();
+// ── INIT ───────────────────────────────────────────────────
+document.getElementById('dvFocus').textContent = dur.focus;
+document.getElementById('dvShort').textContent = dur.short;
+document.getElementById('dvLong').textContent = dur.long;
+setMode('focus');
+renderStats();
+renderDailyProgress();
+renderTasks();
+checkNotif();
